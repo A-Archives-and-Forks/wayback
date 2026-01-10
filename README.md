@@ -220,6 +220,7 @@ Look at the [full list of configuration options](docs/environment.md).
 - [wabarc/on-github](https://github.com/wabarc/on-github)
 - [wabarc/on-render](https://github.com/wabarc/on-render)
 - [wabarc/on-vercel](https://github.com/wabarc/on-vercel)
+- [wabarc/on-digitalocean](https://github.com/wabarc/on-digitalocean)
 
 ### Docker/Podman
 
@@ -239,6 +240,14 @@ docker run -d wabarc/wayback wayback -d telegram -t YOUR-BOT-TOKEN -c YOUR-CHANN
     src="https://render.com/images/deploy-to-render-button.svg"
     alt="Deploy to Render"
     width="147px"
+    height="32px"
+    />
+</a>
+<a href="https://cloud.digitalocean.com/apps/new?repo=https://github.com/wabarc/on-digitalocean/tree/main">
+    <img
+    src="https://www.deploytodo.com/do-btn-blue.svg"
+    alt="Deploy to DigitalOcean"
+    width="200px"
     height="32px"
     />
 </a>
