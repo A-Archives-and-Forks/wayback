@@ -27,8 +27,10 @@ var (
 )
 
 func initClient(opts *config.Options) {
-	if opts.Proxy() != "" {
-		u, err := url.Parse(opts.Proxy())
+	proxyURL := opts.Proxy()
+
+	if proxyURL != "" {
+		u, err := url.Parse(proxyURL)
 		if err != nil {
 			logger.Error("proxy format invalid: %v", err)
 			return
@@ -38,38 +40,58 @@ func initClient(opts *config.Options) {
 			return
 		}
 
-		rt, err = proxier.NewUTLSRoundTripper(proxier.Proxy(opts.Proxy()))
+		rt, err = proxier.NewUTLSRoundTripper(proxier.Proxy(proxyURL))
 		if err != nil {
 			logger.Error("create utls round tripper failed: %v", err)
 			return
 		}
 		dialer = rt.(*proxier.UTLSRoundTripper).Dialer()
+		setupDebugMode(opts)
+		return
+	}
 
-		if opts.HasDebugMode() {
-			go func() {
-				client := &http.Client{Timeout: 30 * time.Second}
-				client.Transport = rt
-				for {
-					ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-					req, _ := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil) // nolint:errcheck
-					resp, err := client.Do(req)
-					if err != nil {
-						logger.Error("request error: %v", err)
-						cancel()
-						continue
-					}
+	// Initialize a standard transport with timeouts
+	rt = &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		DialContext: (&net.Dialer{
+			Timeout:   30 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}).DialContext,
+		ForceAttemptHTTP2:     true,
+		MaxIdleConns:          100,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+	}
+	// Set a default dialer for direct connection
+	dialer = &net.Dialer{Timeout: 2 * time.Minute}
+}
+
+func setupDebugMode(opts *config.Options) {
+	if opts.HasDebugMode() {
+		go func() {
+			client := &http.Client{Timeout: 30 * time.Second}
+			client.Transport = rt
+			for {
+				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+				req, _ := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil) // nolint:errcheck
+				resp, err := client.Do(req)
+				if err != nil {
+					logger.Error("request error: %v", err)
 					cancel()
-					body, err := io.ReadAll(resp.Body)
-					if err != nil {
-						logger.Error("read body error: %v", err)
-						continue
-					}
-					logger.Debug("client handshake: %s", bytes.TrimSpace(body))
-					resp.Body.Close()
-					time.Sleep(time.Minute)
+					continue
 				}
-			}()
-		}
+				cancel()
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					logger.Error("read body error: %v", err)
+					continue
+				}
+				logger.Debug("client handshake: %s", bytes.TrimSpace(body))
+				resp.Body.Close()
+				time.Sleep(time.Minute)
+			}
+		}()
 	}
 }
 
@@ -80,6 +102,7 @@ func canConnect(host, port string) bool {
 		return false
 	}
 	if conn != nil {
+		conn.Close()
 		return true
 	}
 	return false
@@ -87,8 +110,11 @@ func canConnect(host, port string) bool {
 
 // Client returns http.Client
 func Client() *http.Client {
-	client := &http.Client{Transport: rt}
-	return client
+	if rt == nil {
+		return &http.Client{Timeout: 2 * time.Minute}
+	}
+
+	return &http.Client{Transport: rt}
 }
 
 // Dialer returns proxy.Dailer
