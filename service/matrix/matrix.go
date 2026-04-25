@@ -102,9 +102,11 @@ func (m *Matrix) Serve() error {
 			// Do not handle message event:
 			// 1. Sent by self
 			// 2. Message was deleted (when ev.Unsigned.RedactedBecause not nil)
-			if ev.Sender == id.UserID(m.opts.MatrixUserID()) || ev.Unsigned.RedactedBecause != nil {
+			// 3. Message from official message, notice etc
+			if ev.Sender == id.UserID(m.opts.MatrixUserID()) || ev.Unsigned.RedactedBecause != nil || ev.Sender == "@server:matrix.org" {
 				return
 			}
+
 			metrics.IncrementWayback(metrics.ServiceMatrix, metrics.StatusRequest)
 			bucket := pooling.Bucket{
 				Request: func(ctx context.Context) error {
